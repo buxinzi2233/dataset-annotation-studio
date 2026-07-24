@@ -66,7 +66,8 @@ pnpm dev:cuda
 ```
 
 `onnxruntime` 与 `onnxruntime-gpu` 不能在同一环境中并存，uv 配置会阻止同时选择两个
-extra。CUDA Runtime 还受 NVIDIA 软件条款约束；本仓库不分发其二进制文件。
+extra。CUDA extra 将 cuDNN 固定在仍支持 Tesla V100/Volta 的 9.10 系列；CUDA Runtime
+还受 NVIDIA 软件条款约束，本仓库不分发其二进制文件。
 
 如果已有 `.venv` 曾经切换或混装过 CPU/GPU Runtime，先运行
 `uv venv --clear backend/.venv`，再执行上面选定的一条 `uv sync` 命令。它只重建项目
@@ -135,11 +136,11 @@ Secret Service。应用不会退回到明文凭据文件。Hugging Face 下载�
 
 ### Linux 或 niri 下窗口偶发黑屏
 
-Linux 会使用原生窗口边框，但保留与其它平台相同的沉浸式/非沉浸式材质、区域透光、
-场景模糊和动画。WebKitGTK 图形兼容档位与这些视觉设置相互独立；若仍出现黑屏，可按
+Linux 使用原生窗口边框，但默认保留与 Windows 相同的主题、壁纸、透光区域和沉浸模式
+效果。若 WebKitGTK 仍出现黑屏，可按
 [Linux 源码指南](docs/linux.md#wayland-and-webkitgtk-graphics-compatibility) 依次尝试
-`nvidia-sync`、`dmabuf-off` 或 `software`。CUDA 开发可使用
-`DATASET_STUDIO_LINUX_GRAPHICS=dmabuf-off pnpm dev:cuda`。
+`nvidia-sync`、`dmabuf-off` 或 `software` 图形兼容档位；只有最后的 `software`
+档位会关闭高成本模糊与动画。
 
 ### 本地模型只显示 CPU
 

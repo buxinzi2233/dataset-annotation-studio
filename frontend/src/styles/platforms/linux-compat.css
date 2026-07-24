@@ -1,13 +1,104 @@
 /*
- * Linux uses the compositor's native window decorations, so the webview does
- * not render the custom 33px titlebar. Keep only the corresponding layout
- * adjustment here. Immersive mode, per-region transparency, scene blur, and
- * application animations intentionally remain controlled by the shared
- * appearance system on every platform.
- *
- * WebKitGTK renderer workarounds are configured separately in Tauri through
- * DATASET_STUDIO_LINUX_GRAPHICS; they must not silently change page visuals.
+ * Linux uses native window decorations, so the page owns its scene instead of
+ * the hidden custom title bar. Full theme materials remain enabled by default.
  */
 :root[data-runtime-platform="linux"] .desktop-shell--tauri {
   grid-template-rows: minmax(0, 1fr) !important;
+}
+
+:root[data-runtime-platform="linux"] .desktop-shell--tauri::before,
+:root[data-runtime-platform="linux"] .desktop-shell--tauri::after {
+  display: none;
+}
+
+/*
+ * WEBKIT_DISABLE_COMPOSITING_MODE is a last-resort startup option. Only that
+ * explicit software mode receives reduced-compositing materials; default,
+ * nvidia-sync and dmabuf-off retain the same theme and immersive presentation
+ * as Windows.
+ */
+:root[data-runtime-platform="linux"][data-linux-graphics-mode="software"]
+  :where(.settings-center-backdrop, .asset-deletion-backdrop) {
+  backdrop-filter: none !important;
+  animation: none !important;
+}
+
+:root[data-runtime-platform="linux"][data-linux-graphics-mode="software"] .settings-center {
+  background: color-mix(in srgb, var(--work-surface) 97%, transparent) !important;
+  backdrop-filter: none !important;
+  animation: none !important;
+}
+
+:root[data-runtime-platform="linux"][data-linux-graphics-mode="software"]
+  :where(.asset-deletion-dialog, .dialog) {
+  background: color-mix(in srgb, var(--surface) 98%, transparent) !important;
+  animation: none !important;
+}
+
+:root[data-runtime-platform="linux"][data-linux-graphics-mode="software"]
+  .dialog-backdrop::backdrop {
+  animation: none !important;
+}
+
+:root[data-runtime-platform="linux"][data-linux-graphics-mode="software"]
+  :where(.home-page, .home-gallery-scene) {
+  animation: none !important;
+}
+
+:root[data-runtime-platform="linux"][data-linux-graphics-mode="software"] .home-gallery-scene,
+:root[data-runtime-platform="linux"][data-linux-graphics-mode="software"]
+  .workspace-atmosphere::before,
+:root[data-runtime-platform="linux"][data-linux-graphics-mode="software"]
+  .workspace-scene-surface::before {
+  filter: none !important;
+}
+
+:root[data-runtime-platform="linux"][data-linux-graphics-mode="software"]
+  :where(
+    .home-topbar,
+    .home-entry,
+    .recent-card,
+    .recent-placeholder,
+    .workspace-page [data-surface-region],
+    .presets-topbar,
+    .presets-navigation,
+    .preset-list
+  ) {
+  backdrop-filter: none !important;
+}
+
+:root[data-runtime-platform="linux"][data-linux-graphics-mode="software"] .home-topbar {
+  background: color-mix(in srgb, var(--surface-sunken) 94%, transparent) !important;
+}
+
+:root[data-runtime-platform="linux"][data-linux-graphics-mode="software"]
+  :where(.home-entry, .recent-card, .recent-placeholder) {
+  background: color-mix(in srgb, var(--surface-raised) 94%, transparent) !important;
+}
+
+:root[data-runtime-platform="linux"][data-linux-graphics-mode="software"]
+  .workspace-page
+  :where([data-surface-region="navigation"], [data-surface-region="chrome"]) {
+  background: color-mix(in srgb, var(--work-sunken) 96%, transparent) !important;
+}
+
+:root[data-runtime-platform="linux"][data-linux-graphics-mode="software"]
+  .workspace-page
+  :where(
+    [data-surface-region="primary-sidebar"],
+    [data-surface-region="content"],
+    [data-surface-region="secondary-sidebar"]
+  ) {
+  background: color-mix(in srgb, var(--work-surface) 94%, transparent) !important;
+}
+
+:root[data-runtime-platform="linux"][data-linux-graphics-mode="software"]
+  .workspace-page
+  [data-surface-region="canvas"] {
+  background: color-mix(in srgb, var(--work-canvas) 98%, transparent) !important;
+}
+
+:root[data-runtime-platform="linux"][data-linux-graphics-mode="software"]
+  :where(.presets-topbar, .presets-navigation, .preset-list) {
+  background: color-mix(in srgb, var(--work-surface) 94%, transparent) !important;
 }

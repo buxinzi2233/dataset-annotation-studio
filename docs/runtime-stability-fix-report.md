@@ -2,74 +2,54 @@
 
 **Date:** July 24, 2026
 
-**Scope:** local tagger download recovery, CUDA inference compatibility, and Linux Tauri rendering
+**Scope:** local tagger download recovery, CUDA inference compatibility, and Linux Tauri
+rendering
+
+**Contribution:** selectively integrated from
+[PR #2 by BuXinZi](https://github.com/Xuness/dataset-annotation-studio/pull/2) together
+with the existing Linux WebKitGTK hardening work.
 
 ## Summary
 
-Three runtime failures were investigated together because they could leave the local tagger
-workflow unusable even though the application itself still opened:
+Three runtime failures were reviewed together:
 
-1. an interrupted CL Tagger download could not be resumed from its catalog card;
-2. CUDA inference on a Tesla V100 failed in the first vision encoder convolution with a
-   `CUDNN_BACKEND_API_FAILED` error;
-3. WebKitGTK could intermittently render a black window, while the safer `dmabuf-off` mode
-   made large blur and route-transition animations noticeably less smooth.
+1. an interrupted Hugging Face tagger download remained visible but could not be resumed
+   from its catalog card;
+2. CUDA inference on a Tesla V100 failed in the first vision-encoder convolution with
+   `CUDNN_BACKEND_API_FAILED`;
+3. WebKitGTK could intermittently render a black window under niri, while the original
+   Linux compatibility stylesheet also reduced the application's appearance by default.
 
-The fixes keep model downloads resumable, constrain the CUDA environment to a Volta-compatible
-cuDNN release, and separate Linux renderer compatibility from the immersive/non-immersive
-appearance system. No model weights, user data, or appearance preferences are migrated or
-removed.
+The combined fix keeps downloads resumable, constrains the CUDA environment to the last
+cuDNN series that supports Volta, and separates WebKitGTK renderer workarounds from the
+normal appearance system.
 
-## Incident 1: interrupted tagger downloads
+## Interrupted tagger downloads
 
-### Symptom
+The backend already exposes durable task state, `can_resume`, and a resume endpoint. The
+catalog action previously disabled itself whenever any unfinished task existed, including
+paused, failed, or interrupted tasks that the backend explicitly marked as resumable.
 
-The download center showed CL Tagger as interrupted, but the primary catalog action remained
-disabled. The user could not use the same card to continue the existing task.
+The catalog card now:
 
-### Cause
+- shows **Continue download** for a resumable task;
+- resumes the existing task rather than creating a duplicate;
+- keeps active, installed, and non-resumable tasks protected from duplicate starts;
+- shares the same resume action with the detailed task list.
 
-The catalog button treated every non-completed task as a reason to disable a new download. It did
-not distinguish an active task from a resumable task, even though the backend already exposed
-`can_resume` and a resume endpoint.
+The accepted license and audited immutable model revision remain attached to the existing
+task.
 
-### Fix
+## CUDA runtime compatibility
 
-- When the latest task has `can_resume`, the catalog action becomes **Continue download**.
-- The action calls the existing task resume mutation instead of creating a second task.
-- Active, installed, or otherwise non-resumable tasks remain protected from duplicate starts.
-- A UI regression test covers the interrupted-to-queued transition and the resume API request.
+The CUDA extra previously allowed the transitive cuDNN dependency to advance beyond the
+last release supporting Tesla V100/Volta. It now directly constrains
+`nvidia-cudnn-cu12` to `>=9.10,<9.11`, resolving cuDNN 9.10.2.21.
 
-## Incident 2: ONNX Runtime CUDA failure on Tesla V100
-
-### Symptom
-
-CL Tagger failed at the first patch-embedding convolution:
-
-```text
-CUDNN_FE failure 11: CUDNN_BACKEND_API_FAILED
-/vision_encoder/embeddings/patch_embedding/Conv
-```
-
-The runtime then reported that the current local inference runtime was unavailable.
-
-### Cause
-
-The CUDA extra allowed uv to resolve a newer cuDNN 9 release that no longer supports the Volta
-architecture used by Tesla V100 (compute capability 7.0). A previously synchronized environment
-could also retain packages from the opposite CPU/CUDA extra.
-
-### Fix
-
-- Pin `nvidia-cudnn-cu12` to `>=9.10,<9.11` in the CUDA extra and lock cuDNN 9.10.2.21.
-- Use uv exact synchronization for development, checks, and sidecar builds so stale CPU/GPU
-  runtime packages are removed instead of silently retained.
-- Update source-development documentation to use `--exact` for CPU and CUDA environments.
-
-### Hardware smoke test
-
-The installed CL Tagger v2 model was loaded and executed on a Tesla V100-SXM2-16GB with
-ONNX Runtime GPU 1.26.0 and cuDNN 9.10.2.21:
+NVIDIA's
+[cuDNN 9.10 support matrix](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.10.0/reference/support-matrix.html)
+lists compute capability 7.0 and Volta as supported. The PR contributor also reported a
+real CL Tagger v2 smoke test on a Tesla V100-SXM2-16GB using ONNX Runtime GPU 1.26.0:
 
 ```text
 providers=CUDAExecutionProvider,CPUExecutionProvider
@@ -77,74 +57,77 @@ output_shape=(1, 108139)
 output_finite=True
 ```
 
-This exercises the convolution that previously failed, not only provider discovery.
+CPU and CUDA extras are mutually exclusive. Explicit setup, the Windows launcher, and
+sidecar builds use uv exact synchronization so packages left by the opposite runtime
+extra are removed instead of remaining in the shared project environment. Development
+services and checks use the already-selected environment with `--no-sync`, avoiding
+concurrent rewrites while the API and worker executables are running.
 
-## Incident 3: Linux black window and animation stutter
+## Linux black windows
 
-### Black-window diagnosis
+### Renderer failure boundary
 
-A WebKit web-process coredump showed a `SIGBUS` in a `SkiaGPUWorker` thread with WebKitGTK and
-Mesa Gallium frames. This is a webview rendering failure rather than a CUDA inference failure.
-The existing `dmabuf-off` mode remains the narrow workaround:
+The reported web-process coredump contained a `SIGBUS` in a `SkiaGPUWorker` thread with
+WebKitGTK and Mesa Gallium frames. This places the failure in webview rendering rather
+than ONNX Runtime or CUDA inference.
+
+The narrow workaround remains:
 
 ```bash
-DATASET_STUDIO_LINUX_GRAPHICS=dmabuf-off pnpm dev:cuda
+DATASET_STUDIO_LINUX_GRAPHICS=dmabuf-off pnpm dev
 ```
 
-It sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` before the Tauri webview is created and does not disable
-CUDA inference.
+It sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` before Tauri creates the webview. Depending on
+the installed WebKitGTK version, this can move presentation to a non-accelerated
+shared-memory path. It does not disable model inference through CUDA. The broader
+`software` mode remains the final fallback.
 
-### Appearance separation
+WebKit's
+[graphics documentation](https://docs.webkit.org/Ports/WebKitGTK%20and%20WPE%20WebKit/Graphics.html)
+describes DMA-BUF transport for accelerated WebKitGTK frames and shared-memory transport
+for the non-accelerated path.
 
-The earlier Linux compatibility stylesheet coupled renderer safety to appearance by disabling
-blur, transparency, and animations. The stylesheet now only removes the unused custom-titlebar
-layout row. Immersive mode, non-immersive per-region transparency, scene blur, and animations are
-again controlled by the shared appearance settings on every platform.
+### Appearance preservation
 
-### Performance fix for `dmabuf-off`
+Linux uses native window decorations, so the hidden custom web title bar must not own the
+application scene. Rendered transparency tokens now exclude only `desktop-titlebar` when
+the application is actually running in Tauri with native decorations. The stored
+preference is not changed, and Linux browser builds keep normal web behavior.
 
-The restored effects exposed two unnecessary high-cost rendering paths:
+The unused full-window custom-titlebar scene layers are not painted on Linux, and the
+home and workspace scene containers use paint containment to bound invalidation.
 
-- Linux native decorations still emitted the `desktop-titlebar` transparency token. That made an
-  invisible web titlebar take ownership of a filtered full-window scene and replace it on route
-  changes.
-- Surface state changes interpolated `backdrop-filter`, and the home route faded the complete page,
-  including its full-screen filtered scene, for 700 ms.
+These changes intentionally preserve the existing shared visual behavior:
 
-The optimized path now:
+- Windows and normal Linux modes keep the same themes, wallpaper, blur, transparency,
+  immersive mode, and 700 ms home reveal;
+- `backdrop-filter` transitions are not shortened or removed;
+- `default`, `nvidia-sync`, and `dmabuf-off` do not apply CSS visual degradation;
+- only the explicitly selected `software` mode removes high-cost blur and large-surface
+  animations.
 
-- excludes only `desktop-titlebar` from rendered transparency tokens when native decorations are
-  active, without changing the saved preference;
-- keeps final blur values but no longer interpolates `backdrop-filter` frame by frame;
-- animates home content for 280 ms while leaving the large scene layer static;
-- adds paint containment to the home and workspace scene containers.
+The PR's proposed global 280 ms content reveal and removal of blur interpolation were not
+adopted because they would also alter the existing Windows animation presentation.
 
-This preserves the complete immersive/non-immersive visual system while reducing full-window
-rasterization and route-switch composition work.
+## Platform-stable migration test
+
+The migration regression that uses Windows-style `E:\Dataset` and `e:\dataset` paths now
+selects the case-insensitive path policy explicitly. This keeps the test's intended
+expectation identical on Windows and Linux without changing production filesystem
+identity rules.
 
 ## Validation
 
-The following checks were run on the repaired tree:
+The combined tree passed:
 
-- `pnpm --dir frontend check`
-  - formatting passed;
-  - state regression tests passed;
-  - 21 UI tests passed;
-  - TypeScript and ESLint passed.
-- Backend Ruff checks passed.
-- Backend pytest suite passed after making the Windows-style migration test select its intended
-  case-insensitive path policy explicitly.
-- `cargo test --manifest-path src-tauri/Cargo.toml`: 9 tests passed.
-- `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` passed.
-- `cargo check --manifest-path src-tauri/Cargo.toml` passed.
-- `git diff --check` passed apart from existing Git line-ending notices for PowerShell files.
-- Real CL Tagger CUDA inference completed successfully on Tesla V100.
+- frontend formatting, TypeScript, and ESLint;
+- 38 frontend state tests and 20 UI tests;
+- backend Ruff and pytest: 205 passed, 4 skipped;
+- uv lock verification and a locked CUDA exact-sync dry run resolving cuDNN
+  9.10.2.21;
+- Rust formatting and checks, plus 8 tests passed and 1 real-clipboard test
+  intentionally ignored;
+- a production frontend build.
 
-## Compatibility and rollback
-
-- CPU remains the default runtime extra.
-- CUDA users on newer architectures can still use cuDNN 9.10 through ONNX Runtime GPU.
-- The renderer modes remain opt-in: `default`, `nvidia-sync`, `dmabuf-off`, and `software`.
-- `software` remains the broadest fallback and may reduce rendering performance.
-- Removing the `DATASET_STUDIO_LINUX_GRAPHICS` environment variable returns WebKitGTK to its
-  default renderer without changing any appearance preference.
+The Linux renderer modes still require validation on the affected niri/WebKitGTK/driver
+combination because a Windows development host cannot reproduce that graphics stack.

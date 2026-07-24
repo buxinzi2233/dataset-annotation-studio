@@ -1,14 +1,15 @@
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
-import { usesNativeWindowDecorations } from "../desktop/runtimePlatform";
+import {
+  filterTransparentRegionsForWindowDecorations,
+  usesNativeDesktopWindowDecorations,
+} from "../desktop/runtimePlatform";
 import {
   APP_SURFACE_REGIONS,
   resolveAppearance,
   resolveSurfaceTransparency,
   type AppPreferences,
-  type AppSurfaceRegion,
-  type AppSurfaceTransparency,
 } from "./appearance";
 
 function cssUrl(value: string): string {
@@ -17,16 +18,6 @@ function cssUrl(value: string): string {
 
 function resolveImageUrl(path: string): string {
   return isTauri() ? convertFileSrc(path) : path;
-}
-
-export function resolveRenderedTransparentRegions(
-  surfaceTransparency: AppSurfaceTransparency,
-  nativeWindowDecorations: boolean,
-): AppSurfaceRegion[] {
-  return APP_SURFACE_REGIONS.filter(
-    (region) =>
-      surfaceTransparency[region] && !(nativeWindowDecorations && region === "desktop-titlebar"),
-  );
 }
 
 export function applyPreferences(preferences: AppPreferences) {
@@ -66,9 +57,9 @@ export function applyPreferences(preferences: AppPreferences) {
     "--workspace-surface-opacity",
     `${resolved.theme.material.workspaceSurfaceOpacity * 100}%`,
   );
-  root.dataset.transparentRegions = resolveRenderedTransparentRegions(
-    surfaceTransparency,
-    isTauri() && usesNativeWindowDecorations(),
+  root.dataset.transparentRegions = filterTransparentRegionsForWindowDecorations(
+    APP_SURFACE_REGIONS.filter((region) => surfaceTransparency[region]),
+    usesNativeDesktopWindowDecorations(isTauri()),
   ).join(" ");
   root
     .querySelector<HTMLMetaElement>('meta[name="theme-color"]')

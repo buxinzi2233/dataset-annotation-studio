@@ -94,15 +94,13 @@ variables remain available for model downloads.
 
 ## Wayland and WebKitGTK graphics compatibility
 
-Linux uses the compositor's native window decorations, but keeps the same appearance
-system as Windows and macOS. Immersive mode, non-immersive per-region transparency,
-scene blur, and application animations remain controlled by the settings UI. The Linux
-stylesheet only removes the unused custom-titlebar layout row.
+Linux uses the compositor's native window decorations, while the application content
+keeps the same theme materials, wallpaper, transparency controls, and immersive-mode
+presentation as Windows. The native title bar itself follows the desktop environment
+instead of the application's custom title-bar theme.
 
-WebKitGTK renderer compatibility is configured independently and does not change those
-appearance preferences. If WebKitGTK shows an invisible or black window, select one
-compatibility mode before starting Tauri. Start with the narrowest mode that matches the
-system:
+If WebKitGTK still shows an invisible or black window, select one compatibility mode
+before starting Tauri. Start with the narrowest mode that matches the system:
 
 ```bash
 # NVIDIA explicit-sync workaround
@@ -122,11 +120,20 @@ DATASET_STUDIO_LINUX_GRAPHICS=dmabuf-off pnpm dev:cuda
 ```
 
 `default` (or an unset variable) changes no WebKitGTK graphics environment variables.
-The selected flags are applied before the Tauri webview is created, and an explicitly
-pre-set `WEBKIT_*` or NVIDIA variable is never overwritten. None of these modes changes
-immersive mode, region transparency, scene blur, animations, or CUDA inference. The
-`software` mode can reduce rendering performance, so it should be used only after the
-narrower modes fail.
+The `nvidia-sync` and `dmabuf-off` modes retain the full application visuals and
+animations. Depending on the installed WebKitGTK version, `dmabuf-off` can move the
+webview to a non-accelerated shared-memory presentation path, so it is an opt-in
+workaround rather than the Linux default. It does not disable ONNX Runtime CUDA
+inference.
+
+`software` is the last-resort mode: it disables accelerated compositing and removes
+backdrop blur and large-surface animations, while keeping the selected palette,
+wallpaper, and layout.
+
+The selected mode is applied before the Tauri webview is created and injected into the
+page before its first paint. An explicitly pre-set `WEBKIT_*` or NVIDIA variable is
+never overwritten. The `software` mode can reduce rendering performance, so it should
+be used only after the narrower modes fail.
 
 For a niri report, record the niri, WebKitGTK, Mesa/NVIDIA driver, and kernel versions,
 whether the session is native Wayland, and which compatibility mode changes the result.

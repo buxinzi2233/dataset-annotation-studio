@@ -12,6 +12,7 @@
       color-mix(in srgb, var(--app-backdrop) 86%, var(--canvas)) 52%,
       var(--app-backdrop) 100%
     );
+  animation: home-reveal 700ms ease-out both;
 }
 
 .home-page::before,
@@ -119,6 +120,7 @@
   transition:
     border-color var(--transition),
     background var(--transition),
+    backdrop-filter var(--transition),
     box-shadow var(--transition);
 }
 
@@ -178,20 +180,6 @@
   grid-template-rows: minmax(470px, 1fr) auto;
   margin: 0 auto;
   padding: 0 clamp(54px, 7.2vw, 116px) clamp(42px, 5.4vh, 68px);
-}
-
-.home-topbar > *,
-.home-hero__copy,
-.recent-section {
-  animation: home-reveal 280ms ease-out both;
-}
-
-.home-hero__copy {
-  animation-delay: 20ms;
-}
-
-.recent-section {
-  animation-delay: 40ms;
 }
 
 .home-hero {
@@ -274,6 +262,7 @@
     color 220ms ease,
     border-color 220ms ease,
     background 220ms ease,
+    backdrop-filter 220ms ease,
     box-shadow 220ms ease;
 }
 
@@ -424,6 +413,7 @@
   transition:
     background 220ms ease,
     border-color 220ms ease,
+    backdrop-filter 220ms ease,
     box-shadow 220ms ease;
 }
 
@@ -553,6 +543,7 @@
   transition:
     background 220ms ease,
     border-color 220ms ease,
+    backdrop-filter 220ms ease,
     box-shadow 220ms ease;
 }
 
@@ -612,9 +603,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .home-topbar > *,
-  .home-hero__copy,
-  .recent-section {
+  .home-page {
     animation: none;
   }
 }
