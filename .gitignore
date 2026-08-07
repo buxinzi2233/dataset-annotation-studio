@@ -42,3 +42,8 @@ src-tauri/binaries/dataset-studio-service-*
 
 # Local Tag dictionary library
 /dictionaries/
+
+# Local runtime data
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
